@@ -13,33 +13,20 @@
         import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, increment, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ============================================================
-        // ⚠️ تنبيه هام للنشر (Deployment) ⚠️
-        // عند رفع اللعبة على GitHub أو Vercel، يجب عليك استبدال البيانات أدناه
-        // بإعدادات مشروعك الحقيقي من Firebase Console -> Project Settings
+        // 🔴 هام جداً: ضع إعدادات مشروعك هنا ليعمل الأونلاين 🔴
         // ============================================================
         
-       // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyDy3Dh9YOEM9oYy-YhwJuuhqD-RjBXeDUY",
+        const myFirebaseConfig = {
+            // استبدل "YOUR_API_KEY" والمفتاح بالنص الذي يعطيك إياه فايربيس
+              apiKey: "AIzaSyDy3Dh9YOEM9oYy-YhwJuuhqD-RjBXeDUY",
   authDomain: "gen-lang-client-0822914632.firebaseapp.com",
   projectId: "gen-lang-client-0822914632",
   storageBucket: "gen-lang-client-0822914632.firebasestorage.app",
   messagingSenderId: "142184267758",
   appId: "1:142184267758:web:1059ed83d44cc460a0d8ff",
   measurementId: "G-33984TXCE5"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-
+        };
+    
         // ============================================================
 
         // Variables specific to this module scope
@@ -49,12 +36,14 @@ const analytics = getAnalytics(app);
         let myOnlineRole = null; 
 
         // Firebase Configuration Logic
-        // 1. Try to use the injected config (Preview Mode)
-        // 2. Fallback to myFirebaseConfig (Deployment Mode)
         let firebaseConfig = null;
+        
+        // 1. Try environment config (Preview Mode)
         if (typeof __firebase_config !== 'undefined') {
             firebaseConfig = JSON.parse(__firebase_config);
-        } else if (myFirebaseConfig.apiKey !== "YOUR_API_KEY") {
+        } 
+        // 2. Try user provided config (Deployment Mode)
+        else if (myFirebaseConfig.apiKey !== "YOUR_API_KEY") {
             firebaseConfig = myFirebaseConfig;
         }
 
@@ -62,9 +51,14 @@ const analytics = getAnalytics(app);
 
         async function initFirebase() {
             if (!firebaseConfig) {
-                console.warn("Firebase config missing. Update 'myFirebaseConfig' in the code.");
-                document.getElementById('online-status').innerText = "⚠️ التكوين مفقود (راجع الكود)";
-                document.getElementById('online-status').style.color = "orange";
+                console.warn("Firebase config missing.");
+                const statusEl = document.getElementById('online-status');
+                if(statusEl) {
+                    statusEl.innerHTML = "⚠️ <span style='color:red'>لم تضع إعدادات Firebase في الكود!</span>";
+                    statusEl.style.color = "orange";
+                }
+                // Unlock buttons just to show the alert when clicked
+                document.getElementById('online-menu-btns').classList.remove('opacity-50', 'pointer-events-none');
                 return;
             }
 
@@ -73,7 +67,6 @@ const analytics = getAnalytics(app);
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                // Check for custom token (Preview Mode) or Anonymous (Deployment)
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -101,9 +94,8 @@ const analytics = getAnalytics(app);
                     statusEl.innerText = "خطأ في الاتصال ❌";
                     statusEl.style.color = "red";
                 }
-                // Show more detailed error for debugging
                 if (error.code === 'auth/operation-not-allowed') {
-                    alert("تنبيه: يجب تفعيل 'Anonymous Auth' في لوحة تحكم Firebase.");
+                    alert("تنبيه هام: يجب تفعيل خيار 'Anonymous' في قسم Authentication داخل موقع Firebase.");
                 }
             }
         }
@@ -114,13 +106,11 @@ const analytics = getAnalytics(app);
         // --- Online Functions ---
 
         window.createGame = async function() {
-            if (!user) return alert("جاري الاتصال بالخادم... تأكد من إعدادات Firebase");
+            if (!firebaseConfig) return alert("عفواً! لم تقم بإضافة إعدادات Firebase في الكود.\nراجع السطور الأولى في ملف index.html واستبدل YOUR_API_KEY ببيانات مشروعك.");
+            if (!user) return alert("جاري الاتصال بالخادم... تأكد من الإنترنت وإعدادات Firebase");
             
             try {
                 const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-                // Ensure we use a valid path. If appId is generic, put games in a specific collection
-                // For deployed apps, standard structure: 'games/{roomId}' is often easier, 
-                // but we stick to the provided structure for consistency.
                 const gameRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', roomId);
                 
                 await setDoc(gameRef, {
@@ -137,19 +127,21 @@ const analytics = getAnalytics(app);
                 document.getElementById('room-code-display').innerText = roomId;
                 document.getElementById('waiting-msg').classList.remove('hidden');
                 
-                // Copy ID (Fixed logic)
                 copyToClipboard(roomId);
-                
-                // Alert with fallback info
-                alert(`تم إنشاء الغرفة! الرمز هو: ${roomId}\n(حاولنا نسخه للحافظة تلقائياً)`);
+                alert(`تم إنشاء الغرفة! الرمز هو: ${roomId}\n(تم النسخ)`);
                 
             } catch (e) {
                 console.error("Create Game Error:", e);
-                alert("فشل إنشاء الغرفة: " + e.message);
+                if (e.code === 'permission-denied') {
+                    alert("خطأ صلاحيات: تأكد من إعدادات Firestore Rules في Firebase لتكون (allow read, write: if true)");
+                } else {
+                    alert("فشل إنشاء الغرفة: " + e.message);
+                }
             }
         }
 
         window.joinGame = async function() {
+            if (!firebaseConfig) return alert("عفواً! لم تقم بإضافة إعدادات Firebase في الكود.");
             if (!user) return alert("جاري الاتصال بالخادم...");
             const roomId = prompt("أدخل رمز الغرفة:");
             if (!roomId) return;
@@ -208,10 +200,6 @@ const analytics = getAnalytics(app);
                 }
             }, (error) => {
                 console.error("Snapshot Error:", error);
-                // Handle permission errors specifically
-                if (error.code === 'permission-denied') {
-                    alert("خطأ: تم رفض الوصول. تأكد من قواعد الأمان (Firestore Rules) في Firebase.");
-                }
             });
         }
 
@@ -232,32 +220,19 @@ const analytics = getAnalytics(app);
         
         // Robust Copy Function
         function copyToClipboard(text) {
-            // Create a temporary textarea element
             const textArea = document.createElement("textarea");
             textArea.value = text;
-            
-            // Make it invisible but part of the document
             textArea.style.position = "fixed";
             textArea.style.left = "-9999px";
             textArea.style.top = "0";
             document.body.appendChild(textArea);
-            
             textArea.focus();
             textArea.select();
-
             try {
-                const successful = document.execCommand('copy');
-                if (successful) {
-                    console.log('Async: Copying to clipboard was successful!');
-                } else {
-                    console.warn('Async: Copying failed.');
-                    prompt("تعذر النسخ التلقائي. انسخ الرمز يدوياً:", text);
-                }
+                document.execCommand('copy');
             } catch (err) {
-                console.error('Async: Could not copy text: ', err);
-                prompt("تعذر النسخ التلقائي. انسخ الرمز يدوياً:", text);
+                prompt("انسخ الرمز يدوياً:", text);
             }
-
             document.body.removeChild(textArea);
         }
     </script>
@@ -487,7 +462,7 @@ const analytics = getAnalytics(app);
         const recapContainer = document.getElementById('recap-container');
         const recapText = document.getElementById('recap-text');
         
-        const apiKey = "AIzaSyB3NC7YCpb9XqlflOFWDglSzDHIwF-36dU"; 
+        const apiKey = ""; 
         let audioCtx = null;
         let soundEnabled = true;
 
@@ -948,4 +923,3 @@ const analytics = getAnalytics(app);
     </script>
 </body>
 </html>
-
