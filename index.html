@@ -12,19 +12,46 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, increment, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // ============================================================
+        // ⚠️ تنبيه هام للنشر (Deployment) ⚠️
+        // عند رفع اللعبة على GitHub أو Vercel، يجب عليك استبدال البيانات أدناه
+        // بإعدادات مشروعك الحقيقي من Firebase Console -> Project Settings
+        // ============================================================
+        
+        const myFirebaseConfig = {
+            apiKey: "YOUR_API_KEY", // استبدل هذا
+            authDomain: "YOUR_PROJECT.firebaseapp.com", // استبدل هذا
+            projectId: "YOUR_PROJECT_ID", // استبدل هذا
+            storageBucket: "YOUR_PROJECT.firebasestorage.app", // استبدل هذا
+            messagingSenderId: "YOUR_SENDER_ID", // استبدل هذا
+            appId: "YOUR_APP_ID" // استبدل هذا
+        };
+
+        // ============================================================
+
         // Variables specific to this module scope
         let db, auth, user;
         let gameUnsubscribe = null;
         let onlineGameId = null;
         let myOnlineRole = null; 
 
-        // Firebase Configuration
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+        // Firebase Configuration Logic
+        // 1. Try to use the injected config (Preview Mode)
+        // 2. Fallback to myFirebaseConfig (Deployment Mode)
+        let firebaseConfig = null;
+        if (typeof __firebase_config !== 'undefined') {
+            firebaseConfig = JSON.parse(__firebase_config);
+        } else if (myFirebaseConfig.apiKey !== "YOUR_API_KEY") {
+            firebaseConfig = myFirebaseConfig;
+        }
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'triangle-game-v1';
 
         async function initFirebase() {
             if (!firebaseConfig) {
-                console.warn("Firebase config missing. Offline mode only.");
+                console.warn("Firebase config missing. Update 'myFirebaseConfig' in the code.");
+                document.getElementById('online-status').innerText = "⚠️ التكوين مفقود (راجع الكود)";
+                document.getElementById('online-status').style.color = "orange";
                 return;
             }
 
@@ -33,6 +60,7 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
 
+                // Check for custom token (Preview Mode) or Anonymous (Deployment)
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -45,7 +73,10 @@
                         console.log("Firebase Connected. User:", user.uid);
                         const statusEl = document.getElementById('online-status');
                         const btnsEl = document.getElementById('online-menu-btns');
-                        if(statusEl) statusEl.innerText = "متصل بالخادم ✅";
+                        if(statusEl) {
+                            statusEl.innerText = "متصل بالخادم ✅";
+                            statusEl.style.color = "green";
+                        }
                         if(btnsEl) btnsEl.classList.remove('opacity-50', 'pointer-events-none');
                     }
                 });
@@ -53,7 +84,14 @@
             } catch (error) {
                 console.error("Firebase Init Error:", error);
                 const statusEl = document.getElementById('online-status');
-                if(statusEl) statusEl.innerText = "خطأ في الاتصال ❌";
+                if(statusEl) {
+                    statusEl.innerText = "خطأ في الاتصال ❌";
+                    statusEl.style.color = "red";
+                }
+                // Show more detailed error for debugging
+                if (error.code === 'auth/operation-not-allowed') {
+                    alert("تنبيه: يجب تفعيل 'Anonymous Auth' في لوحة تحكم Firebase.");
+                }
             }
         }
 
@@ -63,10 +101,13 @@
         // --- Online Functions ---
 
         window.createGame = async function() {
-            if (!user) return alert("جاري الاتصال بالخادم... حاول بعد قليل");
+            if (!user) return alert("جاري الاتصال بالخادم... تأكد من إعدادات Firebase");
             
             try {
                 const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+                // Ensure we use a valid path. If appId is generic, put games in a specific collection
+                // For deployed apps, standard structure: 'games/{roomId}' is often easier, 
+                // but we stick to the provided structure for consistency.
                 const gameRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', roomId);
                 
                 await setDoc(gameRef, {
@@ -154,6 +195,10 @@
                 }
             }, (error) => {
                 console.error("Snapshot Error:", error);
+                // Handle permission errors specifically
+                if (error.code === 'permission-denied') {
+                    alert("خطأ: تم رفض الوصول. تأكد من قواعد الأمان (Firestore Rules) في Firebase.");
+                }
             });
         }
 
